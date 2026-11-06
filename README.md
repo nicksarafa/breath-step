@@ -41,7 +41,9 @@ No client secret is needed. Sign-in uses the Authorization Code flow with PKCE, 
 ### Where the music plays
 
 - **This browser** (desktop Chrome, Edge, Firefox or Safari) through the Spotify Web Playback SDK. Requires Spotify **Premium**.
-- **Any Spotify Connect device**: the Spotify app on your phone or computer, or a speaker. Open Spotify there, play anything for a second, then choose it under "Music plays on". Use this without Premium in the browser, or on mobile, where the Web Playback SDK does not run.
+- **Any Spotify Connect device**: the Spotify app on your phone or computer, or a speaker. Use this without Premium in the browser, or on a phone, where the Web Playback SDK does not run. On a phone the app picks the Spotify app automatically: open Spotify, play any song for a second, then start the journey. Music keeps playing in the background, even with the screen locked.
+
+During a session, **Music on/off** turns the soundtrack on or off; turning it back on picks the song up at the matching moment.
 
 ### Choosing tracks
 

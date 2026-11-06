@@ -23,6 +23,8 @@ export interface Settings {
   mapView: 'cycle' | 'journey'
   /** Weave guidance around the user's theme into each cycle */
   themeGuidance: boolean
+  /** Spotify music during the session */
+  musicOn: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showMap: true,
   mapView: 'cycle',
   themeGuidance: true,
+  musicOn: true,
 }
 
 export type Mix = Partial<Record<MusicSlotId, TrackRef[]>>

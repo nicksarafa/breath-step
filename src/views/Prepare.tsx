@@ -445,6 +445,7 @@ function Ready({ settings, setSettings, topic, onMusic }: { settings: Settings; 
             ]}
             onChange={set('voice')}
           />
+          <Seg label="Music" value={settings.musicOn ? 1 : 0} options={[[1, 'On'], [0, 'Off']]} onChange={(v) => set('musicOn')(v === 1)} />
           <Seg label="Chimes" value={settings.chimes ? 1 : 0} options={[[1, 'On'], [0, 'Off']]} onChange={(v) => set('chimes')(v === 1)} />
           <Seg label="Breath tones" value={settings.breathTones ? 1 : 0} options={[[1, 'On'], [0, 'Off']]} onChange={(v) => set('breathTones')(v === 1)} />
         </div>

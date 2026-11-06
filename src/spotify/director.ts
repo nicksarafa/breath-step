@@ -70,8 +70,27 @@ export class MusicDirector {
     this.mode = opts.mode
   }
 
+  /** Music on/off from the session. Off means nothing plays until turned back on. */
+  enabled = true
+
   get active() {
-    return playback.isReady()
+    return this.enabled && playback.isReady()
+  }
+
+  /** Turn music off (fade out) or on (find a device, then pick up at the right moment) */
+  async setEnabled(on: boolean, state: SessionState): Promise<boolean> {
+    this.enabled = on
+    if (!on) {
+      if (playback.isReady()) {
+        await playback.fadeTo(0, 1200)
+        await playback.pause()
+        await playback.setVolume(this.base)
+      }
+      return true
+    }
+    const ok = await playback.ensureDevice()
+    if (ok) await this.sync(state)
+    return ok
   }
 
   setBaseVolume(v: number) {
@@ -84,6 +103,7 @@ export class MusicDirector {
   }
 
   async start() {
+    if (this.enabled) await playback.ensureDevice()
     if (!this.active) return
     await playback.setVolume(this.base)
     // Arrival music if chosen, otherwise wait for cycle 1

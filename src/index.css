@@ -448,3 +448,5 @@ html, body { overflow-x: clip; }
 .bm-list li { display: flex; align-items: baseline; gap: 0.45rem; color: var(--text-muted); }
 .bm-list i { width: 10px; height: 3px; border-radius: 2px; flex: none; transform: translateY(-3px); }
 .bm-list b { color: var(--ls-ink); font-weight: 600; white-space: nowrap; }
+.dock-note { display: flex; align-items: center; gap: 0.6rem; max-width: 560px; width: 100%; padding: 0.6rem 0.6rem 0.6rem 0.9rem; border-radius: var(--ls-radius-lg); border: 1px solid rgba(212,160,55,0.35); background: rgba(212,160,55,0.08); color: #f1dcae; font-size: 0.85rem; line-height: 1.45; text-align: left; }
+.dock-note span { flex: 1; }

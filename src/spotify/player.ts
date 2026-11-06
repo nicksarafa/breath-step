@@ -134,6 +134,31 @@ class PlaybackController {
     return !!this.targetDeviceId()
   }
 
+  /** True when the in-browser player cannot be used here (phones, or no Premium) */
+  get needsDevice() {
+    return this.snap.sdk === 'unsupported' || this.snap.sdk === 'premium-required'
+  }
+
+  /**
+   * Make sure music has somewhere to play. When the browser player cannot be
+   * used (phones), pick the Spotify app: the active device first, otherwise a
+   * smartphone, otherwise the first available one.
+   */
+  async ensureDevice(): Promise<boolean> {
+    if (this.isReady() && !(this.needsDevice && this.snap.output.kind === 'browser')) return true
+    if (!isLoggedIn()) return false
+    if (!this.needsDevice && this.snap.output.kind === 'browser') return this.isReady()
+    try {
+      const list = await sp.devices()
+      const pick = list.find((d) => d.is_active) || list.find((d) => /smartphone/i.test(d.type)) || list[0]
+      if (!pick) return false
+      this.setOutput({ kind: 'device', id: pick.id, name: pick.name })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async playTracks(tracks: TrackRef[], opts: { volume?: number; positionMs?: number } = {}) {
     const device = this.targetDeviceId()
     if (!device || tracks.length === 0) return

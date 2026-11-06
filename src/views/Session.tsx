@@ -30,6 +30,7 @@ import {
 import { cycleRange, describeAt, plannedPosition, plannedStart } from '../engine/simulate'
 import { useSession } from '../engine/useSession'
 import { setSlotTrack } from '../mix'
+import { isLoggedIn } from '../spotify/auth'
 import { MusicDirector, slotForCycle } from '../spotify/director'
 import { playback } from '../spotify/player'
 import { usePlayback, useSpotifyAuth } from '../spotify/useSpotify'
@@ -40,6 +41,8 @@ export interface SessionResult {
   cyclesCompleted: number
   completed: boolean
 }
+
+const NO_DEVICE_NOTE = 'To hear your music, open the Spotify app (on this phone or any device), play any song for a second, then come back and tap Music on.'
 
 export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void }) {
   const [settings, setSettings] = useSettings()
@@ -57,7 +60,12 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     })
     return { ...base, cycles }
   })
-  const [director] = useState(() => new MusicDirector(cfg, { volume: settings.musicVolume, mode: settings.changeMode }))
+  const [director] = useState(() => {
+    const d = new MusicDirector(cfg, { volume: settings.musicVolume, mode: settings.changeMode })
+    d.enabled = settings.musicOn
+    return d
+  })
+  const [musicNote, setMusicNote] = useState<string | null>(null)
   const orb = useRef<HTMLDivElement>(null)
   const [cue, setCue] = useState<{ text: string; key: number } | null>(null)
   const [drawer, setDrawer] = useState(false)
@@ -122,7 +130,9 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     director.onError = setMusicError
     if (prefs.current.chimes) chime('deep')
     if (prefs.current.voice !== 'off') speak(PHASE_LINES.arrive, { interrupt: true })
-    void director.start()
+    void director.start().then(() => {
+      if (director.enabled && isLoggedIn() && !playback.isReady() && playback.needsDevice) setMusicNote(NO_DEVICE_NOTE)
+    })
     return () => {
       hush()
       void director.stop()
@@ -182,6 +192,27 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     },
     [act, cfg, director, ref],
   )
+
+  /** Music on or off. On finds the Spotify app if needed and picks up at the right moment. */
+  const toggleMusic = useCallback(() => {
+    unlockAudio()
+    playback.activate()
+    const on = !director.enabled
+    setSettings((s) => ({ ...s, musicOn: on }))
+    if (!isLoggedIn()) {
+      director.enabled = on
+      setMusicNote(on ? 'Connect Spotify on the Music page before your next journey to hear your songs.' : null)
+      return
+    }
+    if (on && ref.current.paused) {
+      // Start when the session resumes
+      director.enabled = true
+      pendingSync.current = true
+      void playback.ensureDevice().then((ok) => setMusicNote(ok || !playback.needsDevice ? null : NO_DEVICE_NOTE))
+      return
+    }
+    void director.setEnabled(on, ref.current).then((ok) => setMusicNote(on && !ok && playback.needsDevice ? NO_DEVICE_NOTE : null))
+  }, [director, ref, setSettings])
 
   /** Voice guidance on or off. Turning it off stops anything being spoken. */
   const toggleVoice = useCallback(() => {
@@ -299,6 +330,14 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
       </main>
 
       <footer className="dock">
+        {musicNote ? (
+          <div className="dock-note" role="status">
+            <span>{musicNote}</span>
+            <button className="icon-btn sm" aria-label="Dismiss" onClick={() => setMusicNote(null)}>
+              <Icon name="close" />
+            </button>
+          </div>
+        ) : null}
         {state.phase === 'holdOut' || state.phase === 'rest' ? (
           <div className="dock-actions">
             {state.phase === 'holdOut' ? (
@@ -332,13 +371,17 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
               <Icon name={settings.voice === 'off' ? 'voiceOff' : 'voice'} />
               <span>{settings.voice === 'off' ? 'Voice off' : 'Voice on'}</span>
             </button>
+            <button className="tool" aria-pressed={settings.musicOn} onClick={toggleMusic} title="Music on or off">
+              <Icon name={settings.musicOn ? 'music' : 'musicOff'} />
+              <span>{settings.musicOn ? 'Music on' : 'Music off'}</span>
+            </button>
             <button className="tool" aria-pressed={settings.showMap} onClick={() => setSettings((s) => ({ ...s, showMap: !s.showMap }))} title="Breath map">
               <Icon name="wave" />
               <span>Map</span>
             </button>
-            <button className="tool" onClick={() => setDrawer(true)} title="Music (M)">
-              <Icon name="music" />
-              <span>Music</span>
+            <button className="tool" onClick={() => setDrawer(true)} title="Choose songs (M)">
+              <Icon name="list" />
+              <span>Songs</span>
             </button>
           </div>
         </div>
