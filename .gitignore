@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Research: photos and transcription of a third-party handout. Never commit.
+research/
+
+# Gilroy is a licensed font: keep it out of the public repo (Inter is the fallback)
+public/fonts/gilroy-*
+
+# Vercel
+.vercel

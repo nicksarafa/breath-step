@@ -1,0 +1,7 @@
+# Uploaded by `vercel deploy`. Secrets and research never leave this machine.
+.env
+.env.*
+research
+node_modules
+.git
+*.HEIC
