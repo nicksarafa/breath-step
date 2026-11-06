@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import type { MusicSlotId } from './data/blueprint'
+import { DEFAULT_MIX } from './data/defaultMix'
 import type { TrackRef } from './spotify/api'
 
 export type VoiceMode = 'full' | 'cues' | 'off'
@@ -62,7 +63,8 @@ function read<T>(key: string, fallback: T): T {
     const raw = localStorage.getItem(key)
     if (raw) {
       const parsed = JSON.parse(raw)
-      const plainObject = typeof fallback === 'object' && fallback !== null && !Array.isArray(fallback)
+      // A stored mix is taken as is (never merged with the default), so cleared slots stay cleared
+      const plainObject = typeof fallback === 'object' && fallback !== null && !Array.isArray(fallback) && key !== KEYS.mix
       v = plainObject ? { ...fallback, ...parsed } : parsed
       // One song per cycle: older mixes could hold several, keep the first
       if (key === KEYS.mix) v = Object.fromEntries(Object.entries(v as Mix).map(([k, list]) => [k, (list || []).slice(0, 1)])) as T
@@ -110,15 +112,14 @@ function useKey<T>(key: string, fallback: T): [T, (next: T | ((prev: T) => T)) =
   return [value, set]
 }
 
-const EMPTY_MIX: Mix = {}
 const EMPTY_JOURNAL: JournalEntry[] = []
 
 export const useSettings = () => useKey<Settings>(KEYS.settings, DEFAULT_SETTINGS)
-export const useMix = () => useKey<Mix>(KEYS.mix, EMPTY_MIX)
+export const useMix = () => useKey<Mix>(KEYS.mix, DEFAULT_MIX)
 export const useJournal = () => useKey<JournalEntry[]>(KEYS.journal, EMPTY_JOURNAL)
 export const useTopic = () => useKey<string>(KEYS.topic, '')
 export const useTheme = () => useKey<string>(KEYS.theme, '')
 
 /** Non-React access for the music director */
-export const getMix = () => read<Mix>(KEYS.mix, EMPTY_MIX)
+export const getMix = () => read<Mix>(KEYS.mix, DEFAULT_MIX)
 export const setMix = (m: Mix) => write(KEYS.mix, m)
