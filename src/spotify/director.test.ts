@@ -18,15 +18,26 @@ describe('music after a scrub', () => {
     expect(slotTimeline(cfg, 'holdStart')[2].start).toBe(plannedStart('holdOut', 0, cfg))
   })
 
-  it('silence during arrival when no arrival track is chosen', () => {
-    expect(musicAt(5000, cfg, 'release', tracksFor).playing).toBeNull()
+  it('without an arrival track, cycle 1 music starts from the first second', () => {
+    const at = musicAt(5000, cfg, 'release', tracksFor)
+    expect(at.slot).toBe('c1')
+    expect(at.playing!.tracks[0].id).toBe('A')
+    expect(at.playing!.positionMs).toBe(5000)
+  })
+
+  it('an arrival track plays first, then cycle 1 starts with breathing', () => {
+    const withArrive = (s: MusicSlotId) => (s === 'arrive' ? [t('Z', 400)] : tracksFor(s))
+    expect(musicAt(5000, cfg, 'release', withArrive).playing!.tracks[0].id).toBe('Z')
+    const at = musicAt(plannedStart('breathe', 0, cfg) + 10_000, cfg, 'release', withArrive)
+    expect(at.playing!.tracks[0].id).toBe('A')
+    expect(at.playing!.positionMs).toBe(10_000)
   })
 
   it('lands inside the right track at the right position', () => {
     const at = musicAt(plannedStart('breathe', 0, cfg) + 10_000, cfg, 'release', tracksFor)
     expect(at.slot).toBe('c1')
     expect(at.playing!.tracks[0].id).toBe('A')
-    expect(at.playing!.positionMs).toBe(10_000)
+    expect(at.playing!.positionMs).toBe(plannedStart('breathe', 0, cfg) + 10_000)
   })
 
   it('moves to the next track in a slot, honouring its start offset', () => {

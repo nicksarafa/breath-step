@@ -156,7 +156,7 @@ export function MusicView({ onBack }: { onBack: () => void }) {
                       Suggested: {cycle.suggestions.slice(0, 3).map((s) => s.label).join(' / ')}
                     </div>
                   ) : (
-                    <div className="empty">{slot.id === 'arrive' ? 'Silence, or something soft while you settle.' : 'No track yet. The previous music carries on.'}</div>
+                    <div className="empty">{slot.id === 'arrive' ? "Empty, so cycle 1's song starts as you settle." : 'No track yet. The previous music carries on.'}</div>
                   )}
 
                   {auth.loggedIn ? (

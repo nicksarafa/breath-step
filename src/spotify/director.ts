@@ -21,12 +21,22 @@ export function slotForCycle(index: number, cfg: SessionConfig): MusicSlotId {
   return index < cfg.cycles.length ? (cfg.cycles[index].id as MusicSlotId) : 'rest'
 }
 
-/** Every slot in play order with the planned moment its music begins */
-export function slotTimeline(cfg: SessionConfig, mode: ChangeMode): { slot: MusicSlotId; start: number }[] {
+/**
+ * Every slot in play order with the planned moment its music begins. Without
+ * an arrival song, cycle 1's song starts straight away so the journey never
+ * opens in silence (pass `tracksFor` to apply that).
+ */
+export function slotTimeline(
+  cfg: SessionConfig,
+  mode: ChangeMode,
+  tracksFor?: (s: MusicSlotId) => TrackRef[],
+): { slot: MusicSlotId; start: number }[] {
   const change = mode === 'release' ? 'release' : 'holdOut'
-  const out: { slot: MusicSlotId; start: number }[] = [{ slot: 'arrive', start: 0 }]
+  const leadIn = !tracksFor || tracksFor('arrive').length > 0
+  const out: { slot: MusicSlotId; start: number }[] = leadIn ? [{ slot: 'arrive', start: 0 }] : []
   cfg.cycles.forEach((c, i) => {
-    out.push({ slot: c.id as MusicSlotId, start: i === 0 ? plannedStart('breathe', 0, cfg) : plannedStart(change, i - 1, cfg) })
+    const first = leadIn ? plannedStart('breathe', 0, cfg) : 0
+    out.push({ slot: c.id as MusicSlotId, start: i === 0 ? first : plannedStart(change, i - 1, cfg) })
   })
   out.push({ slot: 'rest', start: plannedStart(change, cfg.cycles.length - 1, cfg) })
   return out
@@ -37,7 +47,7 @@ export function slotTimeline(cfg: SessionConfig, mode: ChangeMode): { slot: Musi
  * slot that has tracks, which track in it, and how far into that track.
  */
 export function musicAt(ms: number, cfg: SessionConfig, mode: ChangeMode, tracksFor: (s: MusicSlotId) => TrackRef[]) {
-  const line = slotTimeline(cfg, mode)
+  const line = slotTimeline(cfg, mode, tracksFor)
   let k = line.length - 1
   while (k > 0 && line[k].start > ms) k--
   const slot = line[k].slot
@@ -108,8 +118,10 @@ export class MusicDirector {
     if (this.enabled) await playback.ensureDevice()
     if (!this.active) return
     await playback.setVolume(this.base)
-    // Arrival music if chosen, otherwise wait for cycle 1
+    // Arrival music if chosen, otherwise cycle 1's song starts now and carries
+    // on into cycle 1 (currentSlot stops the breathe event restarting it)
     if (this.tracksFor('arrive').length) await this.playSlot('arrive')
+    else await this.playSlot(slotForCycle(0, this.cfg))
   }
 
   handle(events: SessionEvent[]) {
