@@ -36,7 +36,8 @@ export function PrepareView({
   onMusic: () => void
 }) {
   const [settings, setSettings] = useSettings()
-  const steps: StepId[] = quick ? (settings.safetyAck ? ['question', 'ready'] : ['safety', 'question', 'ready']) : FULL
+  // Fixed when the flow opens: acknowledging safety mid-flow must not reshuffle the steps
+  const [steps] = useState<StepId[]>(() => (quick ? (settings.safetyAck ? ['question', 'ready'] : ['safety', 'question', 'ready']) : FULL))
   const [i, setI] = useState(startAtReady && settings.safetyAck ? steps.length - 1 : 0)
   const [topic, setTopic] = useTopic()
   const [ack, setAck] = useState(settings.safetyAck)
@@ -324,8 +325,8 @@ function ThemeGuidanceCard({ settings, setSettings }: { settings: Settings; setS
       {on && sample ? <p className="small" style={{ margin: 0, color: 'var(--text-secondary)' }}>In cycle 3, for example: “{sample}”</p> : null}
       {on ? (
         <p className="micro faint" style={{ margin: 0 }}>
-          {settings.voice !== 'full'
-            ? 'Shown on screen. Choose Full guidance above to hear them spoken.'
+          {settings.voice === 'off'
+            ? 'Shown on screen. Turn voice guidance on above to hear them spoken.'
             : voiceEngine() === 'elevenlabs'
               ? 'Spoken in the guide’s voice, generated for your theme when the journey begins.'
               : 'Spoken by your browser’s voice.'}
@@ -356,11 +357,23 @@ function ThemeField() {
   )
 }
 
-function Seg<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+function Seg<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+  className = '',
+}: {
+  label: string
+  value: T
+  options: [T, string][]
+  onChange: (v: T) => void
+  className?: string
+}) {
   return (
     <div className="stack gap-2">
       <span className="label">{label}</span>
-      <div className="segmented" role="group" aria-label={label}>
+      <div className={`segmented ${className}`} role="group" aria-label={label}>
         {options.map(([v, l]) => (
           <button key={String(v)} aria-pressed={value === v} onClick={() => onChange(v)}>
             {l}
@@ -399,6 +412,7 @@ function Ready({ settings, setSettings, topic, onMusic }: { settings: Settings; 
             value={settings.cycleCount}
             options={CYCLES.map((c) => [c.number, String(c.number)] as [number, string])}
             onChange={set('cycleCount')}
+            className="grid9"
           />
           <Seg
             label="Timing"
@@ -424,11 +438,10 @@ function Ready({ settings, setSettings, topic, onMusic }: { settings: Settings; 
         <div className="row gap-6 wrap">
           <Seg
             label="Voice guidance"
-            value={settings.voice}
+            value={settings.voice === 'off' ? 'off' : 'full'}
             options={[
-              ['full', 'Full guidance'],
-              ['cues', 'Breath cues only'],
-              ['off', 'Silent'],
+              ['full', 'On'],
+              ['off', 'Off'],
             ]}
             onChange={set('voice')}
           />

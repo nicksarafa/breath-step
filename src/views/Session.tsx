@@ -52,7 +52,7 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     // Weave the theme questions into each cycle, and fetch their voice ahead of time
     const cycles = base.cycles.map((c, i) => {
       const lines = themeLines(i, theme)
-      lines.forEach((text, line) => prepareThemeLine(text, { cycle: i, line, theme }, settings.voice === 'full'))
+      lines.forEach((text, line) => prepareThemeLine(text, { cycle: i, line, theme }, settings.voice !== 'off'))
       return { ...c, breatheCues: weave(c.breatheCues, lines) }
     })
     return { ...base, cycles }
@@ -98,7 +98,7 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
           }
         } else if (e.type === 'cue') {
           setCue({ text: e.text, key: Date.now() + Math.random() })
-          if (voice === 'full') speak(e.text)
+          if (voice !== 'off') speak(e.text)
         } else if (e.type === 'countdown') {
           if (p.chimes) tick(e.n)
           if (voice !== 'off') speak(String(e.n), { interrupt: true, rate: 1 })
@@ -183,6 +183,17 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     [act, cfg, director, ref],
   )
 
+  /** Voice guidance on or off. Turning it off stops anything being spoken. */
+  const toggleVoice = useCallback(() => {
+    unlockVoice()
+    unlockAudio()
+    setSettings((s) => {
+      const next: VoiceMode = s.voice === 'off' ? 'full' : 'off'
+      if (next === 'off') hush()
+      return { ...s, voice: next }
+    })
+  }, [setSettings])
+
   /** In the hold: end it now. A natural part of the breath, so the music carries on untouched. */
   const breatheInNow = useCallback(() => act((s) => skipPhase(s, cfg)), [act, cfg])
 
@@ -198,18 +209,20 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
   // Keyboard: space pause, L stay longer, enter / right arrow skip, M music
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest('input, textarea, select, [contenteditable]')) return
+      const t = e.target as HTMLElement | null
+      if (t && typeof t.closest === 'function' && t.closest('input, textarea, select, [contenteditable]')) return
       if (e.key === ' ') {
         e.preventDefault()
         pauseToggle()
       } else if (e.key === 'l' || e.key === 'L') act(extendHold)
       else if (e.key === 'Enter' || e.key === 'ArrowRight') skip()
       else if (e.key === 'm' || e.key === 'M') setDrawer((d) => !d)
+      else if (e.key === 'v' || e.key === 'V') toggleVoice()
       else if (e.key === 'Escape') setDrawer(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [act, pauseToggle, skip])
+  }, [act, pauseToggle, skip, toggleVoice])
 
   const c = cfg.cycles[state.cycleIndex]
   const progress = cycleProgress(state, cfg)
@@ -286,63 +299,48 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
       </main>
 
       <footer className="dock">
-        <NowPlayingChip onOpen={() => setDrawer(true)} />
-        <div className="dock-main">
-          <button className="icon-btn" onClick={pauseToggle} aria-label={state.paused ? 'Resume' : 'Pause'} title="Pause (space)">
-            <Icon name={state.paused ? 'play' : 'pause'} />
-          </button>
-
-          {state.phase === 'holdOut' ? (
-            <>
-              <button className="btn" onClick={() => act(extendHold)} title="Stay longer (L)">
-                <Icon name="plusTime" /> Stay longer
+        {state.phase === 'holdOut' || state.phase === 'rest' ? (
+          <div className="dock-actions">
+            {state.phase === 'holdOut' ? (
+              <>
+                <button className="btn" onClick={() => act(extendHold)} title="Stay longer (L)">
+                  <Icon name="plusTime" /> Stay longer
+                </button>
+                <button className="btn btn-primary" onClick={breatheInNow} title="Breathe in now (Enter)">
+                  <Icon name="lungs" /> Breathe in now
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-primary" onClick={() => onFinish({ cyclesCompleted: cfg.cycles.length, completed: true })}>
+                I am ready to return
               </button>
-              <button className="btn btn-primary" onClick={breatheInNow} title="Breathe in now (Enter)">
-                <Icon name="lungs" /> Breathe in now
-              </button>
-            </>
-          ) : null}
-
-          {state.phase === 'rest' ? (
-            <button className="btn btn-primary" onClick={() => onFinish({ cyclesCompleted: cfg.cycles.length, completed: true })}>
-              I am ready to return
+            )}
+          </div>
+        ) : null}
+        <div className="dock-bar">
+          <NowPlayingChip onOpen={() => setDrawer(true)} />
+          <div className="dock-tools" role="toolbar" aria-label="Session controls">
+            <button className="tool" onClick={pauseToggle} title="Pause (space)">
+              <Icon name={state.paused ? 'play' : 'pause'} />
+              <span>{state.paused ? 'Resume' : 'Pause'}</span>
             </button>
-          ) : null}
-
-          {state.phase !== 'holdOut' && state.phase !== 'rest' ? (
-            <button className="icon-btn" onClick={skip} aria-label="Skip to the next step" title="Next step (Enter)">
+            <button className="tool" onClick={skip} disabled={state.phase === 'rest' || state.phase === 'holdOut'} title="Next step (Enter)">
               <Icon name="next" />
+              <span>Next</span>
             </button>
-          ) : null}
-
-          <button
-            className="icon-btn"
-            aria-label={`Voice: ${settings.voice}`}
-            title="Voice guidance"
-            aria-pressed={settings.voice !== 'off'}
-            onClick={() => {
-              unlockVoice()
-              unlockAudio()
-              const order: VoiceMode[] = ['full', 'cues', 'off']
-              const next = order[(order.indexOf(settings.voice) + 1) % order.length]
-              if (next === 'off') hush()
-              setSettings((s) => ({ ...s, voice: next }))
-            }}
-          >
-            <Icon name={settings.voice === 'off' ? 'voiceOff' : 'voice'} />
-          </button>
-          <button
-            className="icon-btn"
-            aria-label="Show breath map"
-            aria-pressed={settings.showMap}
-            title="Breath map"
-            onClick={() => setSettings((s) => ({ ...s, showMap: !s.showMap }))}
-          >
-            <Icon name="wave" />
-          </button>
-          <button className="icon-btn" aria-label="Music" title="Music (M)" onClick={() => setDrawer(true)}>
-            <Icon name="music" />
-          </button>
+            <button className="tool" aria-pressed={settings.voice !== 'off'} onClick={toggleVoice} title="Voice guidance on or off (V)">
+              <Icon name={settings.voice === 'off' ? 'voiceOff' : 'voice'} />
+              <span>{settings.voice === 'off' ? 'Voice off' : 'Voice on'}</span>
+            </button>
+            <button className="tool" aria-pressed={settings.showMap} onClick={() => setSettings((s) => ({ ...s, showMap: !s.showMap }))} title="Breath map">
+              <Icon name="wave" />
+              <span>Map</span>
+            </button>
+            <button className="tool" onClick={() => setDrawer(true)} title="Music (M)">
+              <Icon name="music" />
+              <span>Music</span>
+            </button>
+          </div>
         </div>
       </footer>
 
@@ -463,7 +461,9 @@ function NowPlayingChip({ onOpen }: { onOpen: () => void }) {
       {np.track.image ? <img src={np.track.image} alt="" className={np.paused ? '' : 'spin'} /> : <span className="art"><Icon name="music" /></span>}
       <span className="meta">
         <b>{np.track.name}</b>
-        <span>{np.track.artists}</span>
+        <span>
+          {np.track.artists} · <span className="np-time">{fmt(np.positionMs + (np.paused ? 0 : Date.now() - np.at))}</span>
+        </span>
       </span>
     </button>
   )

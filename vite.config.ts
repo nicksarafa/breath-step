@@ -34,7 +34,7 @@ function voiceApi(): Plugin {
         try {
           send(200, await synthesize(text, cfg), 'audio/mpeg')
         } catch (e) {
-          send(502, { error: (e as Error).message })
+          send((e as { statusCode?: number }).statusCode === 429 ? 429 : 502, { error: (e as Error).message })
         }
       })
     },

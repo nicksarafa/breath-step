@@ -23,7 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Cache-Control', 'private, max-age=31536000, immutable')
     return res.status(200).send(Buffer.from(audio))
   } catch (e) {
-    return res.status(502).json({ error: (e as Error).message })
+    // Pass ElevenLabs' "too many requests" through so the browser backs off and retries
+    const status = (e as { statusCode?: number }).statusCode === 429 ? 429 : 502
+    return res.status(status).json({ error: (e as Error).message })
   }
 }
 

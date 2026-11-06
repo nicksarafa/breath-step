@@ -6,6 +6,8 @@ import { defaultConfig, totalPlannedMs } from '../engine/session'
 import { useMix, useSettings } from '../store'
 import { fmt, fmtMinutes } from '../util'
 
+const COUNT_WORDS: Record<number, string> = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine' }
+
 export function HomeView({ onBegin, onMusic }: { onBegin: (quick: boolean) => void; onMusic: () => void }) {
   const [settings] = useSettings()
   const [mix] = useMix()
@@ -26,7 +28,7 @@ export function HomeView({ onBegin, onMusic }: { onBegin: (quick: boolean) => vo
             Breathe your way <span className="shine">home</span>
           </h1>
           <p className="lede" style={{ textAlign: 'center' }}>
-            Nine cycles of guided breath. From the body, through resistance and the heart, to the question you came with. Your music, changing with every exhale.
+            {COUNT_WORDS[settings.cycleCount] ?? settings.cycleCount} {settings.cycleCount === 1 ? 'cycle' : 'cycles'} of guided breath. From the body, through resistance and the heart, to the question you came with. Your music, changing with every exhale.
           </p>
           <div className="row gap-3 wrap center">
             <button className="btn btn-primary btn-lg" onClick={() => onBegin(settings.introDone)}>
@@ -76,9 +78,9 @@ export function HomeView({ onBegin, onMusic }: { onBegin: (quick: boolean) => vo
                 <div className="small muted">{c.subtitle}</div>
               </div>
               <span className="small faint" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                {fmt(c.breatheSec * 1000)} breath
+                {fmt(c.breatheSec * settings.timeScale * 1000)} breath
                 <br />
-                {c.holdOutSec}s hold
+                {Math.round(c.holdOutSec * settings.timeScale)}s hold
               </span>
             </li>
           ))}

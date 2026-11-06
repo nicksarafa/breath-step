@@ -49,8 +49,8 @@ function fetchThemeAudio(text: string, req: ThemeReq): Promise<string | null> {
           const cache = 'caches' in window ? await caches.open(CACHE) : null
           let res = await cache?.match(key)
           if (!res) {
-            const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
-            if (!r.ok) return null
+            const r = await limited(() => fetchWithRetry(req))
+            if (!r) return null
             await cache?.put(key, r.clone())
             res = r
           }
@@ -62,6 +62,30 @@ function fetchThemeAudio(text: string, req: ThemeReq): Promise<string | null> {
     )
   }
   return themeAudio.get(text)!
+}
+
+// ElevenLabs allows few requests at once (2 on the free plan): queue them, retry when busy
+let active = 0
+const waiting: (() => void)[] = []
+async function limited<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= 2) await new Promise<void>((r) => waiting.push(r))
+  active++
+  try {
+    return await fn()
+  } finally {
+    active--
+    waiting.shift()?.()
+  }
+}
+
+async function fetchWithRetry(req: ThemeReq): Promise<Response | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+    if (r.ok) return r
+    if (r.status !== 429 && r.status < 500) return null
+    await new Promise((res) => setTimeout(res, 1500 * (attempt + 1)))
+  }
+  return null
 }
 
 /** Register a theme line; optionally fetch its audio now so it plays without delay */
@@ -109,6 +133,7 @@ async function playNext() {
     const a = audioEl()
     a.onended = done
     a.onerror = () => browserSpeak(item.text, item.rate, done)
+    a.muted = false
     a.src = src
     a.play().catch(() => browserSpeak(item.text, item.rate, done))
   } else browserSpeak(item.text, item.rate, done)
@@ -139,14 +164,16 @@ export function unlockVoice() {
   // Play any real clip muted: unlocks this element for later, gesture-free playback
   const first = manifest && Object.values(manifest)[0]
   if (first) {
+    const unlockSrc = `/voice/${first}`
     a.muted = true
-    a.src = `/voice/${first}`
+    a.src = unlockSrc
     a.play()
+      // Only stop it if a real line has not already taken over the element
       .then(() => {
-        a.pause()
-        a.muted = false
+        if (a.src.endsWith(unlockSrc)) a.pause()
       })
-      .catch(() => {
+      .catch(() => {})
+      .finally(() => {
         a.muted = false
       })
   }

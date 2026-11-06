@@ -18,7 +18,7 @@ const VIOLET = '#a78bfa'
 const PINK = '#e06b8a'
 
 /** Draw at the container's real pixel width so text never stretches */
-function useWidth(fallback = 800) {
+function useWidth(fallback = 320) {
   const ref = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(fallback)
   useLayoutEffect(() => {
@@ -198,7 +198,9 @@ export function BreathMapCycle({
   const t0 = s.breathe.start
   const t1 = s.release.end
   const [box, W] = useWidth()
-  const H = compact ? 64 : 236
+  // On narrow screens the phase labels move out of the graphic into a list below
+  const narrow = !compact && W < 560
+  const H = compact ? 64 : narrow ? 150 : 236
   const yTop = compact ? 8 : 40
   const yBot = compact ? 56 : 132
   const y = (f: number) => yBot - f * (yBot - yTop)
@@ -259,7 +261,7 @@ export function BreathMapCycle({
             next track ♪
           </text>
           {/* annotations under the plot, staggered so short phases stay legible */}
-          {segs.map((g) => {
+          {!narrow && segs.map((g) => {
             const cx = (x(g.sp.start) + x(g.sp.end)) / 2
             // Long phases label in place; short ones step down a staircase on the right
             const ROWS: Partial<Record<PhaseSpan['phase'], number>> = { letGo: 1, inhale: 2, holdIn: 3, release: 4 }
@@ -282,6 +284,16 @@ export function BreathMapCycle({
         <line x1={x(playheadMs)} x2={x(playheadMs)} y1={2} y2={H - 2} stroke="#fff" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       ) : null}
     </svg>
+    {narrow ? (
+      <ul className="bm-list">
+        {segs.map((g) => (
+          <li key={g.label}>
+            <i style={{ background: g.color }} />
+            <b>{g.label}</b> <span>{g.sub}</span>
+          </li>
+        ))}
+      </ul>
+    ) : null}
     </div>
   )
 }

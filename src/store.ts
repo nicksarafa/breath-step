@@ -3,6 +3,7 @@ import type { MusicSlotId } from './data/blueprint'
 import { DEFAULT_MIX } from './data/defaultMix'
 import type { TrackRef } from './spotify/api'
 
+/** 'full' = voice on, 'off' = voice off. ('cues' is a legacy value, treated as on.) */
 export type VoiceMode = 'full' | 'cues' | 'off'
 export type ChangeMode = 'release' | 'holdStart'
 
