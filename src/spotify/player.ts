@@ -29,7 +29,7 @@ export interface PlayerSnapshot {
 }
 
 const OUTPUT_KEY = 'bj.spotify.output'
-const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+// Spotify's Web Playback SDK runs in desktop and mobile browsers (iOS needs a tap to unlock audio)
 
 function loadOutput(): Output {
   try {
@@ -42,7 +42,7 @@ function loadOutput(): Output {
 }
 
 class PlaybackController {
-  private snap: PlayerSnapshot = { sdk: isMobile ? 'unsupported' : 'idle', output: loadOutput(), volume: 0.8 }
+  private snap: PlayerSnapshot = { sdk: 'idle', output: loadOutput(), volume: 0.8 }
   private listeners = new Set<() => void>()
   private player: Spotify.Player | null = null
   private fadeTimer: number | null = null
@@ -68,7 +68,7 @@ class PlaybackController {
 
   /** Load the SDK and register this browser as a Spotify Connect device. */
   async initSdk() {
-    if (!isLoggedIn() || isMobile || this.player || this.snap.sdk === 'loading') return
+    if (!isLoggedIn() || this.player || this.snap.sdk === 'loading') return
     this.set({ sdk: 'loading', sdkMessage: undefined })
     try {
       await loadSdkScript()
@@ -120,6 +120,30 @@ class PlaybackController {
     this.player?.activateElement?.().catch(() => {})
   }
 
+  /** Wait (up to ms) for this browser's player to be ready */
+  async waitForBrowser(ms = 8000): Promise<boolean> {
+    const start = Date.now()
+    while (Date.now() - start < ms) {
+      if (this.snap.browserDeviceId && this.snap.sdk === 'ready') return true
+      if (this.needsDevice || this.snap.sdk === 'error') return false
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    return !!this.snap.browserDeviceId
+  }
+
+  /** Is sound actually coming out of this browser's player right now? */
+  async browserIsPlaying(): Promise<boolean> {
+    if (!this.usingBrowser || !this.player) return true
+    const st = await this.player.getCurrentState().catch(() => null)
+    return !!st && !st.paused
+  }
+
+  /** From a tap: unlock audio and start the browser player (phones block sound until a tap) */
+  async startFromTap() {
+    await this.player?.activateElement?.().catch(() => {})
+    await this.player?.resume().catch(() => {})
+  }
+
   setOutput(o: Output) {
     localStorage.setItem(OUTPUT_KEY, JSON.stringify(o))
     this.set({ output: o })
@@ -145,9 +169,22 @@ class PlaybackController {
    * smartphone, otherwise the first available one.
    */
   async ensureDevice(): Promise<boolean> {
-    if (this.isReady() && !(this.needsDevice && this.snap.output.kind === 'browser')) return true
     if (!isLoggedIn()) return false
-    if (!this.needsDevice && this.snap.output.kind === 'browser') return this.isReady()
+    // A saved device that has gone offline (e.g. the Spotify app was closed): come back to this page
+    if (this.snap.output.kind === 'device' && !this.needsDevice) {
+      const id = this.snap.output.id
+      const online = await sp
+        .devices()
+        .then((l) => l.some((d) => d.id === id))
+        .catch(() => true)
+      if (!online) this.setOutput({ kind: 'browser' })
+    }
+    if (this.isReady() && !(this.needsDevice && this.snap.output.kind === 'browser')) return true
+    // Prefer playing right here in the page; give the player a moment to connect
+    if (!this.needsDevice && this.snap.output.kind === 'browser') {
+      if (this.snap.sdk === 'idle') void this.initSdk()
+      return this.waitForBrowser()
+    }
     try {
       const list = await sp.devices()
       const pick = list.find((d) => d.is_active) || list.find((d) => /smartphone/i.test(d.type)) || list[0]
@@ -287,7 +324,7 @@ class PlaybackController {
     this.stopPolling()
     this.player?.disconnect()
     this.player = null
-    this.set({ sdk: isMobile ? 'unsupported' : 'idle', browserDeviceId: undefined, nowPlaying: undefined })
+    this.set({ sdk: 'idle', browserDeviceId: undefined, nowPlaying: undefined })
   }
 }
 

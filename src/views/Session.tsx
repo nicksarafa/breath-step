@@ -66,6 +66,7 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
     return d
   })
   const [musicNote, setMusicNote] = useState<string | null>(null)
+  const [musicBlocked, setMusicBlocked] = useState(false)
   const orb = useRef<HTMLDivElement>(null)
   const [cue, setCue] = useState<{ text: string; key: number } | null>(null)
   const [drawer, setDrawer] = useState(false)
@@ -128,6 +129,7 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
   // Start: chime, voice, music
   useEffect(() => {
     director.onError = setMusicError
+    director.onBlocked = () => setMusicBlocked(true)
     if (prefs.current.chimes) chime('deep')
     if (prefs.current.voice !== 'off') speak(PHASE_LINES.arrive, { interrupt: true })
     void director.start().then(() => {
@@ -330,6 +332,19 @@ export function SessionView({ onFinish }: { onFinish: (r: SessionResult) => void
       </main>
 
       <footer className="dock">
+        {musicBlocked ? (
+          <div className="dock-actions">
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setMusicBlocked(false)
+                void playback.startFromTap().then(() => director.sync(ref.current))
+              }}
+            >
+              <Icon name="music" /> Start music
+            </button>
+          </div>
+        ) : null}
         {musicNote ? (
           <div className="dock-note" role="status">
             <span>{musicNote}</span>

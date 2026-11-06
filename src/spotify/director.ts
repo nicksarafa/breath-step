@@ -63,6 +63,8 @@ export class MusicDirector {
   private cfg: SessionConfig
   private mode: ChangeMode
   onError?: (msg: string) => void
+  /** Called when the browser is holding the music back until a tap (phones) */
+  onBlocked?: () => void
 
   constructor(cfg: SessionConfig, opts: { volume: number; mode: ChangeMode }) {
     this.cfg = cfg
@@ -153,6 +155,7 @@ export class MusicDirector {
     try {
       this.currentSlot = slot
       await playback.playTracks(tracks, { volume: this.base * fromLevel })
+      this.checkAudible()
       await playback.fadeTo(this.base, 3500)
     } catch (e) {
       this.onError?.((e as Error).message)
@@ -172,10 +175,18 @@ export class MusicDirector {
         return
       }
       await playback.playTracks(at.playing.tracks, { volume: this.base * 0.5, positionMs: at.playing.positionMs })
+      this.checkAudible()
       await playback.fadeTo(this.base, 1500)
     } catch (e) {
       this.onError?.((e as Error).message)
     }
+  }
+
+  /** A couple of seconds after starting a song, make sure it is really playing */
+  private checkAudible() {
+    setTimeout(async () => {
+      if (this.active && !(await playback.browserIsPlaying())) this.onBlocked?.()
+    }, 2500)
   }
 
   async pause() {
